@@ -29,13 +29,13 @@ fix = "/base/list"
             'description': '提供本地心理测评使用，提供包括问卷记录，视频统计分析等功能',
             'version': '0.0.1',
             'copyright': '2021',
-            'website': 'http://81.69.223.15:7913/#/home',
+            'website': 'https://www.mirrormoon.top:7913/#/list',
             'developer': 'KingRainGrey、',
             'license': '口头授权'
         }, {
             'type': 'Link',
             'menuTitle': '打开问卷',
-            'url': 'http://81.69.223.15:7913/#/home'
+            'url': 'https://www.mirrormoon.top:7913/#/home'
         },{
             'type': 'MessageDialog',
             'menuTitle': '帮助',
@@ -46,10 +46,11 @@ fix = "/base/list"
 )
 def main():
     parser = GooeyParser(description="本工具配合单机问卷系统联合使用")
-    parser.add_argument('input', metavar='视频保存文件夹', help="选择回答卷时保存视频的本地文件夹", widget="DirChooser")
-    parser.add_argument('out', metavar='视频输出文件夹', help="分割后的视频片段将会保存在该路径", widget="DirChooser")
+    parser.add_argument('input', metavar='视频保存文件夹', help="选择回答卷时保存视频的本地文件夹",default='./input', widget="DirChooser")
+    parser.add_argument('out', metavar='视频输出文件夹', help="分割后的视频片段将会保存在该路径",default='./output', widget="DirChooser")
     parser.add_argument('ffpath', metavar='ffmpeg路径', help="视频分割依赖ffmpage,请配置ffmpeg.exe路径",default='./ffmpeg/bin/ffmpeg.exe', widget="FileChooser")
-    parser.add_argument('url', metavar="服务器地址", help="下行数据的服务器地址",default="http://81.69.223.15:7945",widget="TextField")
+    # parser.add_argument('url', metavar="服务器地址", help="下行数据的服务器地址",default="https://www.mirrormoon.top:7945",widget="TextField")
+    parser.add_argument('url', metavar="服务器地址", help="下行数据的服务器地址", default="http://81.69.223.15:7946",widget="TextField")
     args = parser.parse_args()
 
 
@@ -63,15 +64,23 @@ def main():
     url = '' + args.url + fix
     res = requests.get(url)
     res_dict = res.json()
+    text = json.dumps(res_dict)
+    text = text.encode("utf-8")
+    res_dict = json.loads(text)
+    # res_dict = res.json()
+    # res_dict = json.loads(res)
+    # res_dict = res_dict.encode("utf-8")
     if res_dict['code'] == 200:
-        print('-----数据下载成功-----')
-        print('-----服务器数据-----')
-        print(json.dumps(res_dict, indent=2, sort_keys=True, ensure_ascii=False))
+        # print('-----data download success-----')
+        # print('-----data-----')
+        # print(json.dumps(res_dict, indent=2, sort_keys=True, ensure_ascii=False))
+        # res_dict = json.dumps(res_dict)
+        # res_dict = res_dict.encode("utf-8")
         # 读取input文件夹内视频
-        print('-----输入文件夹视频路径-----')
+        # print('-----input file path-----')
         inputFileList = get_all_path(inputFilePath)
-        print(inputFileList)
-        print('-----开始匹配分割-----')
+        # print(inputFileList)
+        # print('-----start split when find the data-----')
         for path in inputFileList:
             arr = path.split("\\")
             # xxxxxxx.mkv
@@ -82,51 +91,80 @@ def main():
             datalist = res_dict['data']
             for data in datalist:
                 name = data['content']['videoName']
-                times = data['timePoint']
+                # times = data['timePoint']
+                answers = data['answers']
                 if filenamewithoutmkv == name:
                     # 匹配到了
                     # 开始分割pre
-                    print('-----' + '文件名:' + filename + '匹配到了服务器数据，开始分割' + '-----')
+                    # print('-----' + '文件名:' + filename + '匹配到了服务器数据，开始分割' + '-----')
 
-                    # 对时间进行取整处理
-                    newtimeslist = []
-                    for t in times:
-                        if t == 0:
-                            pass
-                        else:
-                            newt = int (t/1000)
-                            newtimeslist.append(newt)
-                    print('-----分割时间点-----')
-                    print(newtimeslist)
-                    print('-----按时间点开始分割-----')
-                    pretime = 0
-                    partname = 1
-                    for t in newtimeslist:
-                        # clip = VideoFileClip(path).subclip(pretime, t)
-                        stime = time.strftime('%H:%M:%S', time.gmtime(pretime))
-                        etime = time.strftime('%H:%M:%S', time.gmtime(t))
-                        print('开始时间:' + stime)
-                        print('结束时间:' + etime)
-                        mkdir(outFilePath  + '\\' + filenamewithoutmkv + '\\')
-                        outputfile = outFilePath  + '\\' + filenamewithoutmkv + '\\' + str(partname) + '.mp4'
-                        print('输出文件:' + outputfile)
+                    nowType = ''
+                    # 新数据结构的处理逻辑
+                    for answer in answers:
+                        type = answer['type']
+                        # if type != '抑郁症':
+                        #     break
+                        stime = time.strftime('%H:%M:%S', time.gmtime(answer['stime']))
+                        etime = time.strftime('%H:%M:%S', time.gmtime(answer['etime']))
+                        passtime = time.strftime('%H:%M:%S', time.gmtime(answer['pass']))
+
+                        # print('start-time:' + stime)
+                        # print('end-time:' + etime)
+
+                        prepath = outFilePath + '\\' + filenamewithoutmkv + '\\' + type + '\\'
+                        if nowType != type:
+                            mkdir(prepath)
+                        outputfile = prepath + '\\' + str(answer['id']) + '-' + str(answer['result']) + '.mp4'
                         ff = ffmpy.FFmpeg(
-                            executable= ffpath,
-                            inputs={path:None},
-                            outputs={outputfile : [
+                            executable=ffpath,
+                            inputs={path: None},
+                            outputs={outputfile: [
                                 '-ss', stime,
-                                '-t', etime,
+                                '-t', passtime,
                             ]}
                         )
                         ff.run()
-                        # clip_video(path, outputfile, pretime, t)
-                        pretime = t
-                        partname = partname + 1
+
+                    # # 对时间进行取整处理
+                    # newtimeslist = []
+                    # for t in times:
+                    #     if t == 0:
+                    #         pass
+                    #     else:
+                    #         newt = int (t/1000)
+                    #         newtimeslist.append(newt)
+                    # print('-----分割时间点-----')
+                    # print(newtimeslist)
+                    # print('-----按时间点开始分割-----')
+                    # pretime = 0
+                    # partname = 1
+                    # for t in newtimeslist:
+                    #     # clip = VideoFileClip(path).subclip(pretime, t)
+                    #     stime = time.strftime('%H:%M:%S', time.gmtime(pretime))
+                    #     etime = time.strftime('%H:%M:%S', time.gmtime(t))
+                    #     print('开始时间:' + stime)
+                    #     print('结束时间:' + etime)
+                    #     mkdir(outFilePath  + '\\' + filenamewithoutmkv + '\\')
+                    #     outputfile = outFilePath  + '\\' + filenamewithoutmkv + '\\' + str(partname) + '.mp4'
+                    #     print('输出文件:' + outputfile)
+                    #     ff = ffmpy.FFmpeg(
+                    #         executable= ffpath,
+                    #         inputs={path:None},
+                    #         outputs={outputfile : [
+                    #             '-ss', stime,
+                    #             '-t', etime,
+                    #         ]}
+                    #     )
+                    #     ff.run()
+                    #     # clip_video(path, outputfile, pretime, t)
+                    #     pretime = t
+                    #     partname = partname + 1
 
     else:
-        print('-----数据下载失败-----')
+        # print('-----download data failed-----')
         return
-    print('-----运行结束-----')
+    os.startfile(outFilePath)
+    # print('-----done-----')
 
 
 def mkdir(path):
@@ -168,8 +206,7 @@ def get_all_path(open_file_path):
     return path_list
 
 
-def success_print(text):
-    print(f'\033[35m{text}\033[0m')
+
 
 if __name__ == '__main__':
     # success_print('123')
